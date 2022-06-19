@@ -164,11 +164,10 @@ def get_entities(seq, suffix=False):
 
         if suffix:
             if not chunk.endswith(('-B', '-I', '-E', '-S')):
-                warnings.warn('{} seems not to be NE tag.'.format(chunk))
+                warnings.warn(f'{chunk} seems not to be NE tag.')
 
-        else:
-            if not chunk.startswith(('B-', 'I-', 'E-', 'S-')):
-                warnings.warn('{} seems not to be NE tag.'.format(chunk))
+        elif not chunk.startswith(('B-', 'I-', 'E-', 'S-')):
+            warnings.warn(f'{chunk} seems not to be NE tag.')
 
     # for nested list
     if any(isinstance(s, list) for s in seq):
@@ -212,24 +211,13 @@ def end_of_chunk(prev_tag, tag, prev_type, type_):
     """
     chunk_end = False
 
-    if prev_tag == 'E':
+    if (
+        prev_tag in ['B', 'I']
+        and tag in ['B', 'S', 'O']
+        or prev_tag not in ['B', 'I']
+        and prev_tag in ['E', 'S']
+    ):
         chunk_end = True
-    if prev_tag == 'S':
-        chunk_end = True
-
-    if prev_tag == 'B' and tag == 'B':
-        chunk_end = True
-    if prev_tag == 'B' and tag == 'S':
-        chunk_end = True
-    if prev_tag == 'B' and tag == 'O':
-        chunk_end = True
-    if prev_tag == 'I' and tag == 'B':
-        chunk_end = True
-    if prev_tag == 'I' and tag == 'S':
-        chunk_end = True
-    if prev_tag == 'I' and tag == 'O':
-        chunk_end = True
-
     if prev_tag != 'O' and prev_tag != '.' and prev_type != type_:
         chunk_end = True
 
@@ -250,24 +238,10 @@ def start_of_chunk(prev_tag, tag, prev_type, type_):
     """
     chunk_start = False
 
-    if tag == 'B':
+    if tag in ['B', 'S']:
         chunk_start = True
-    if tag == 'S':
+    if prev_tag in ['E', 'S', 'O'] and tag in ['E', 'I']:
         chunk_start = True
-
-    if prev_tag == 'E' and tag == 'E':
-        chunk_start = True
-    if prev_tag == 'E' and tag == 'I':
-        chunk_start = True
-    if prev_tag == 'S' and tag == 'E':
-        chunk_start = True
-    if prev_tag == 'S' and tag == 'I':
-        chunk_start = True
-    if prev_tag == 'O' and tag == 'E':
-        chunk_start = True
-    if prev_tag == 'O' and tag == 'I':
-        chunk_start = True
-
     if tag != 'O' and tag != '.' and prev_type != type_:
         chunk_start = True
 
@@ -394,9 +368,7 @@ def accuracy_score(y_true, y_pred):
     nb_correct = sum(y_t == y_p for y_t, y_p in zip(y_true, y_pred))
     nb_true = len(y_true)
 
-    score = nb_correct / nb_true
-
-    return score
+    return nb_correct / nb_true
 
 
 def precision_score(y_true: List[List[str]], y_pred: List[List[str]],
@@ -595,19 +567,26 @@ def performance_measure(y_true, y_pred):
         >>> performance_measure(y_true, y_pred)
         {'TP': 3, 'FP': 3, 'FN': 1, 'TN': 4}
     """
-    performance_dict = dict()
     if any(isinstance(s, list) for s in y_true):
         y_true = [item for sublist in y_true for item in sublist]
         y_pred = [item for sublist in y_pred for item in sublist]
-    performance_dict['TP'] = sum(y_t == y_p for y_t, y_p in zip(y_true, y_pred)
-                                 if ((y_t != 'O') or (y_p != 'O')))
-    performance_dict['FP'] = sum(((y_t != y_p) and (y_p != 'O')) for y_t, y_p in zip(y_true, y_pred))
-    performance_dict['FN'] = sum(((y_t != 'O') and (y_p == 'O'))
-                                 for y_t, y_p in zip(y_true, y_pred))
-    performance_dict['TN'] = sum((y_t == y_p == 'O')
-                                 for y_t, y_p in zip(y_true, y_pred))
-
-    return performance_dict
+    return {
+        'TP': sum(
+            (
+                y_t == y_p
+                for y_t, y_p in zip(y_true, y_pred)
+                if ((y_t != 'O') or (y_p != 'O'))
+            )
+        ),
+        'FP': sum(y_t != y_p != 'O' for y_t, y_p in zip(y_true, y_pred)),
+        'FN': sum(
+            (
+                ((y_t != 'O') and (y_p == 'O'))
+                for y_t, y_p in zip(y_true, y_pred)
+            )
+        ),
+        'TN': sum(((y_t == y_p == 'O') for y_t, y_p in zip(y_true, y_pred))),
+    }
 
 
 def classification_report(y_true, y_pred,
@@ -710,7 +689,7 @@ def classification_report(y_true, y_pred,
             zero_division=zero_division,
             suffix=suffix
         )
-        reporter.write('{} avg'.format(average), avg_p, avg_r, avg_f1, support)
+        reporter.write(f'{average} avg', avg_p, avg_r, avg_f1, support)
     reporter.write_blank()
 
     return reporter.report()

@@ -424,3 +424,147 @@ def classification_report(y_true: List[List[str]],
     reporter.write_blank()
 
     return reporter.report()
+
+def tp_fp_tn_fn(y_true: List[List[str]],
+                                    y_pred: List[List[str]],
+                                    *,
+                                    scheme: Optional[Type[Token]] = None,
+                                    suffix: bool = False,
+                                    **kwargs) -> SCORES:
+
+    def extract_tp_actual_correct(y_true, y_pred, suffix, scheme):
+        # If this function is called from classification_report,
+        # try to reuse entities to optimize the function.
+        entities_true = kwargs.get('entities_true') or Entities(y_true, scheme, suffix)
+        entities_pred = kwargs.get('entities_pred') or Entities(y_pred, scheme, suffix)
+        target_names = sorted(entities_true.unique_tags | entities_pred.unique_tags)
+
+        tp_sum = np.array([], dtype=np.int32)
+        pred_sum = np.array([], dtype=np.int32)
+        true_sum = np.array([], dtype=np.int32)
+        tn_sum = np.array([], dtype=np.int32)
+        for type_name in target_names:
+            entities_true_type = entities_true.filter(type_name)
+            entities_pred_type = entities_pred.filter(type_name)
+            tp_sum = np.append(tp_sum, len(entities_true_type & entities_pred_type))
+            pred_sum = np.append(pred_sum, len(entities_pred_type))
+            true_sum = np.append(true_sum, len(entities_true_type))
+            tn_sum = np.append(tn_sum, len(entities_true_type - entities_pred_type))
+
+        return pred_sum, tp_sum, true_sum, tn_sum
+
+    check_consistent_length(y_true, y_pred)
+
+    pred_sum, tp_sum, true_sum, tn_sum = extract_tp_actual_correct(y_true, y_pred, suffix, scheme)
+
+    fp_sum = pred_sum - tp_sum
+    fn_sum = true_sum - tp_sum
+
+    return tp_sum, fp_sum, tn_sum, fn_sum
+
+def confusion_matrix(y_true: List[List[str]],
+                          y_pred: List[List[str]],
+                          *,
+                          sample_weight: Optional[List[int]] = None,
+                          digits: int = 2,
+                          output_dict: bool = False,
+                          zero_division: str = 'warn',
+                          suffix: bool = False,
+                          scheme: Type[Token] = None) -> Union[str, dict]:
+    """Build a text report showing the main tagging metrics.
+
+    Args:
+        y_true : 2d array. Ground truth (correct) target values.
+
+        y_pred : 2d array. Estimated targets as returned by a classifier.
+
+        sample_weight : array-like of shape (n_samples,), default=None
+            Sample weights.
+
+        digits : int. Number of digits for formatting output floating point values.
+
+        output_dict : bool(default=False). If True, return output as dict else str.
+
+        zero_division : "warn", 0 or 1, default="warn"
+            Sets the value to return when there is a zero division:
+               - recall: when there are no positive labels
+               - precision: when there are no positive predictions
+               - f-score: both
+
+            If set to "warn", this acts as 0, but warnings are also raised.
+
+        scheme : Token, [IOB2, IOE2, IOBES]
+
+        suffix : bool, False by default.
+
+    Returns:
+        report : string/dict. Summary of the precision, recall, F1 score for each class.
+
+    Examples:
+    #     >>> from seqeval.metrics.v1 import classification_report
+    #     >>> y_true = [['O', 'O', 'O', 'B-MISC', 'I-MISC', 'I-MISC', 'O'], ['B-PER', 'I-PER', 'O']]
+    #     >>> y_pred = [['O', 'O', 'B-MISC', 'I-MISC', 'I-MISC', 'I-MISC', 'O'], ['B-PER', 'I-PER', 'O']]
+    #     >>> print(classification_report(y_true, y_pred))
+    #                  precision    recall  f1-score   support
+    #     <BLANKLINE>
+    #            MISC       0.00      0.00      0.00         1
+    #             PER       1.00      1.00      1.00         1
+    #     <BLANKLINE>
+    #       micro avg       0.50      0.50      0.50         2
+    #       macro avg       0.50      0.50      0.50         2
+    #    weighted avg       0.50      0.50      0.50         2
+    #     <BLANKLINE>
+    """
+    check_consistent_length(y_true, y_pred)
+
+    if scheme is None or not issubclass(scheme, Token):
+        scheme = auto_detect(y_true, suffix)
+
+    entities_true = Entities(y_true, scheme, suffix)
+    entities_pred = Entities(y_pred, scheme, suffix)
+    target_names = sorted(entities_true.unique_tags | entities_pred.unique_tags)
+
+    if output_dict:
+        reporter = DictReporter()
+    else:
+        name_width = max(map(len, target_names))
+        avg_width = len('weighted avg')
+        width = max(name_width, avg_width, digits)
+        reporter = StringReporter(
+            width=width,
+            digits=digits,
+            headers=['TP', 'FP', 'TN', 'FN'],
+            row_fmt='{:>{width}s} ' + ' {:>9.{digits}f}' * 3 + ' {:>9.{digits}f}'
+        )
+
+    # compute per-class scores.
+    tp_sum, fp_sum, tn_sum, fn_sum = tp_fp_tn_fn(
+        y_true, y_pred,
+        average=None,
+        sample_weight=sample_weight,
+        zero_division=zero_division,
+        scheme=scheme,
+        suffix=suffix,
+        entities_true=entities_true,
+        entities_pred=entities_pred
+    )
+    for row in zip(target_names, tp_sum, fp_sum, tn_sum, fn_sum):
+        reporter.write(*row)
+    reporter.write_blank()
+
+    total_tp_sum, total_fp_sum, total_tn_sum, total_fn_sum = tp_sum.sum(), fp_sum.sum(), tn_sum.sum(), fn_sum.sum()
+    reporter.write('total', total_tp_sum, total_fp_sum, total_tn_sum, total_fn_sum)
+    reporter.write_blank()
+
+    return reporter.report()
+
+
+if __name__ == '__main__':
+    from seqeval.metrics import performance_measure
+    y_true = [['O', 'O', 'O', 'B-MISC', 'I-MISC', 'I-MISC', 'O'],
+                   ['B-PER', 'I-PER', 'O']]
+    y_pred = [['O', 'O', 'B-MISC', 'I-MISC', 'I-MISC', 'I-MISC', 'O'],
+                   ['B-PER', 'I-PER', 'O']]
+    print(confusion_matrix(y_true, y_pred))
+    print(performance_measure(y_true, y_pred))
+

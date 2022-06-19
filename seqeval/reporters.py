@@ -41,9 +41,16 @@ class StringReporter(Reporter):
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.buffer = []
-        self.row_fmt = '{:>{width}s} ' + ' {:>9.{digits}f}' * 3 + ' {:>9}'
+        if 'row_fmt' in kwargs:
+            self.row_fmt = kwargs['row_fmt']
+        else:
+            self.row_fmt = '{:>{width}s} ' + ' {:>9.{digits}f}' * 3 + ' {:>9}'
         self.width = kwargs.get('width', 10)
         self.digits = kwargs.get('digits', 4)
+        if "headers" in kwargs:
+            self.headers = kwargs["headers"]
+        else:
+            self.headers = ['precision', 'recall', 'f1-score', 'support']
 
     def report(self):
         report = self.write_header()
@@ -59,7 +66,7 @@ class StringReporter(Reporter):
         self.buffer.append(row)
 
     def write_header(self):
-        headers = ['precision', 'recall', 'f1-score', 'support']
+        headers = self.headers
         head_fmt = '{:>{width}s} ' + ' {:>9}' * len(headers)
         report = head_fmt.format('', *headers, width=self.width)
         report += '\n\n'

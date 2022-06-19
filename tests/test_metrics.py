@@ -162,7 +162,7 @@ class TestMetrics(unittest.TestCase):
         filepath = 'eval_data.txt'
         for prefix in ['BIO', 'EIO']:
             for i in range(10000):
-                print('Iteration: {}'.format(i))
+                print(f'Iteration: {i}')
                 self.generate_eval_data(filepath, prefix)
                 y_true, y_pred = self.load_labels(filepath)
                 with open(filepath) as f:
@@ -196,9 +196,8 @@ class TestMetrics(unittest.TestCase):
                     _, _, tag_true, tag_pred = line.split(' ')
                     tags_true.append(tag_true)
                     tags_pred.append(tag_pred)
-            else:
-                y_true.append(tags_true)
-                y_pred.append(tags_pred)
+            y_true.append(tags_true)
+            y_pred.append(tags_pred)
         return y_true, y_pred
 
     @staticmethod
@@ -220,13 +219,13 @@ class TestMetrics(unittest.TestCase):
         types = ['PER', 'MISC', 'ORG', 'LOC']
         report = ''
         raw_fmt = '{} {} {} {}\n'
-        for i in range(1000):
+        for _ in range(1000):
             type_true = random.choice(types)
             type_pred = random.choice(types)
             prefix_true = random.choice(prefixes)
             prefix_pred = random.choice(prefixes)
-            true_out = 'O' if prefix_true == 'O' else '{}-{}'.format(prefix_true, type_true)
-            pred_out = 'O' if prefix_pred == 'O' else '{}-{}'.format(prefix_pred, type_pred)
+            true_out = 'O' if prefix_true == 'O' else f'{prefix_true}-{type_true}'
+            pred_out = 'O' if prefix_pred == 'O' else f'{prefix_pred}-{type_pred}'
             report += raw_fmt.format('X', 'X', true_out, pred_out)
 
             # end of sentence

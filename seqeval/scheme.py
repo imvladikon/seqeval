@@ -12,7 +12,7 @@ class Entity:
         self.tag = tag
 
     def __repr__(self):
-        return '({}, {}, {}, {})'.format(self.sent_id, self.tag, self.start, self.end)
+        return f'({self.sent_id}, {self.tag}, {self.start}, {self.end})'
 
     def __eq__(self, other: 'Entity'):
         return self.to_tuple() == other.to_tuple()
@@ -91,10 +91,12 @@ class Token:
 
     def check_patterns(self, prev: 'Token', patterns: Set[Tuple[Prefix, Prefix, Tag]]):
         """Check whether the prefix patterns are matched."""
-        for prev_prefix, current_prefix, tag_cond in patterns:
-            if prev.prefix in prev_prefix and self.prefix in current_prefix and self.check_tag(prev, tag_cond):
-                return True
-        return False
+        return any(
+            prev.prefix in prev_prefix
+            and self.prefix in current_prefix
+            and self.check_tag(prev, tag_cond)
+            for prev_prefix, current_prefix, tag_cond in patterns
+        )
 
 
 class IOB1(Token):
@@ -277,15 +279,11 @@ class Entities:
         ]
 
     def filter(self, tag_name: str):
-        entities = {entity for entity in chain(*self.entities) if entity.tag == tag_name}
-        return entities
+        return {entity for entity in chain(*self.entities) if entity.tag == tag_name}
 
     @property
     def unique_tags(self):
-        tags = {
-            entity.tag for entity in chain(*self.entities)
-        }
-        return tags
+        return {entity.tag for entity in chain(*self.entities)}
 
 
 def auto_detect(sequences: List[List[str]], suffix: bool = False, delimiter: str = '-'):

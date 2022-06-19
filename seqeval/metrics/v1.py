@@ -45,15 +45,10 @@ def _prf_divide(numerator, denominator, metric,
     # labels with no predicted samples. Use ``zero_division`` parameter to
     # control this behavior."
 
-    if metric in warn_for and 'f-score' in warn_for:
+    if 'f-score' in warn_for:
         msg_start = '{0} and F-score are'.format(metric.title())
-    elif metric in warn_for:
-        msg_start = '{0} is'.format(metric.title())
-    elif 'f-score' in warn_for:
-        msg_start = 'F-score is'
     else:
-        return result
-
+        msg_start = '{0} is'.format(metric.title())
     _warn_prf(average, modifier, msg_start, len(result))
 
     return result
@@ -93,11 +88,12 @@ def check_consistent_length(y_true: List[List[str]], y_pred: List[List[str]]):
     len_true = list(map(len, y_true))
     len_pred = list(map(len, y_pred))
     is_list = set(map(type, y_true)) | set(map(type, y_pred))
-    if not is_list == {list}:
+    if is_list != {list}:
         raise TypeError('Found input variables without list of list.')
 
     if len(y_true) != len(y_pred) or len_true != len_pred:
-        message = 'Found input variables with inconsistent numbers of samples:\n{}\n{}'.format(len_true, len_pred)
+        message = f'Found input variables with inconsistent numbers of samples:\n{len_true}\n{len_pred}'
+
         raise ValueError(message)
 
 
@@ -117,7 +113,7 @@ def _precision_recall_fscore_support(y_true: List[List[str]],
 
     average_options = (None, 'micro', 'macro', 'weighted')
     if average not in average_options:
-        raise ValueError('average has to be one of {}'.format(average_options))
+        raise ValueError(f'average has to be one of {average_options}')
 
     check_consistent_length(y_true, y_pred)
 
@@ -154,11 +150,14 @@ def _precision_recall_fscore_support(y_true: List[List[str]],
 
     # warn for f-score only if zero_division is warn, it is in warn_for
     # and BOTH prec and rec are ill-defined
-    if zero_division == 'warn' and ('f-score',) == warn_for:
-        if (pred_sum[true_sum == 0] == 0).any():
-            _warn_prf(
-                average, 'true nor predicted', 'F-score is', len(true_sum)
-            )
+    if (
+        zero_division == 'warn'
+        and ('f-score',) == warn_for
+        and (pred_sum[true_sum == 0] == 0).any()
+    ):
+        _warn_prf(
+            average, 'true nor predicted', 'F-score is', len(true_sum)
+        )
 
     # if tp == 0 F will be 1 only if all predictions are zero, all labels are
     # zero, and zero_division=1. In all other case, 0
@@ -174,7 +173,7 @@ def _precision_recall_fscore_support(y_true: List[List[str]],
     if average == 'weighted':
         weights = true_sum
         if weights.sum() == 0:
-            zero_division_value = 0.0 if zero_division in ['warn', 0] else 1.0
+            zero_division_value = 0.0 if zero_division in {'warn', 0} else 1.0
             # precision is zero_division if there are no positive predictions
             # recall is zero_division if there are no positive labels
             # fscore is zero_division if all labels AND predictions are
@@ -420,7 +419,7 @@ def classification_report(y_true: List[List[str]],
             entities_true=entities_true,
             entities_pred=entities_pred
         )
-        reporter.write('{} avg'.format(average), avg_p, avg_r, avg_f1, support)
+        reporter.write(f'{average} avg', avg_p, avg_r, avg_f1, support)
     reporter.write_blank()
 
     return reporter.report()
